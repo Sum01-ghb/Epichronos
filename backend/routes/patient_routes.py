@@ -1,13 +1,11 @@
 """
 Patient report history API.
-
 All routes require authentication. Reports are filtered by logged-in user (user_id from JWT).
 """
 
 import json
 
 from fastapi import APIRouter, Depends, HTTPException, status
-
 from auth import get_current_user
 from database import get_db
 from models import PatientReport, User

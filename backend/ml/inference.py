@@ -98,26 +98,55 @@ def predict_patient(data: Dict[str, Any]) -> Dict[str, Any]:
     else:
         risk_level = "High"
 
-    # Derive feature importance–based biomarker contributions
+    # Derive patient-specific biomarker contributions.
+    # Instead of returning the static model-level feature_importances_ (which are
+    # identical for every patient), we compute a weighted contribution that
+    # reflects BOTH the feature's global importance AND how much *this patient's*
+    # value deviates from the training median:
+    #
+    #   contribution_i = importance_i * |patient_value_i - median_i| / (median_i + ε)
+    #
+    # After normalising these Raw values to sum to 1, each patient gets a unique
+    # fingerprint: a biomarker that's globally less important can rank higher for a
+    # specific patient if their value is far from the population median.
     biomarker_contribution: Dict[str, float] = {}
     top_biomarkers: List[Dict[str, Any]] = []
 
     if hasattr(risk_model, "feature_importances_"):
         importances = np.asarray(getattr(risk_model, "feature_importances_"), dtype=float)
-        # Map feature names to importance values
+        patient_values = np.array([data[name] for name in feature_names], dtype=float)
+
+        # Training medians from the fitted imputer
+        if hasattr(median_imputer, "statistics_"):
+            medians = np.asarray(median_imputer.statistics_, dtype=float)
+        else:
+            medians = patient_values.copy()
+
+        # Normalised deviation from the population median (scale-free)
+        deviation = np.abs(patient_values - medians) / (np.abs(medians) + 1e-8)
+
+        # Raw weighted contribution
+        raw_contrib = importances * deviation
+        total = raw_contrib.sum()
+        if total > 0:
+            norm_contrib = raw_contrib / total
+        else:
+            # Patient is perfectly average — fall back to normalised importances
+            imp_total = importances.sum()
+            norm_contrib = importances / imp_total if imp_total > 0 else importances
+
         contrib_items = [
-            (feature_names[i], float(importances[i]))
+            (feature_names[i], float(norm_contrib[i]))
             for i in range(len(feature_names))
         ]
-        # Sort descending by importance
         contrib_items.sort(key=lambda x: x[1], reverse=True)
-        # Preserve order in the dict
         biomarker_contribution = {name: val for name, val in contrib_items}
 
-        # Top non-zero biomarkers (up to 3)
+        # Top non-zero biomarkers (up to 5)
         non_zero = [(name, val) for name, val in contrib_items if val > 0]
-        for name, val in non_zero[:3]:
+        for name, val in non_zero[:5]:
             top_biomarkers.append({"feature": name, "importance": float(val)})
+
 
     # Optional epigenetic age proxy: age + (tumor_mean * 0.5)
     epigenetic_age: float | None = None

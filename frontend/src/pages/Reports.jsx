@@ -220,42 +220,152 @@ export default function Reports() {
   const topBiomarkers = prediction?.top_biomarkers || [];
 
   const handleDownload = () => {
-    if (!reportRef.current) return;
+    // Build a clean, self-contained HTML document from report data.
+    // We avoid cloning the React/Recharts DOM (charts don't repaint in clones,
+    // glassmorphism backdrops render as blank, etc.). Instead we write pure HTML
+    // from the data and open it in a popup window to print.
+    const riskColorHex =
+      effectiveRiskCategory === "Low"
+        ? "#10b981"
+        : effectiveRiskCategory === "Moderate"
+        ? "#f59e0b"
+        : "#ef4444";
 
-    // Use the browser's native print-to-PDF which fully supports modern CSS
-    // (oklch, oklab, color-mix etc.) — unlike html2canvas which crashes on them.
-    // We inject a temporary @media print stylesheet to hide app chrome.
-    const styleId = "epi-print-style";
-    let style = document.getElementById(styleId);
-    if (!style) {
-      style = document.createElement("style");
-      style.id = styleId;
-      document.head.appendChild(style);
+    const bioRows = biomarkerData
+      .slice(0, 12)
+      .map(
+        (b) => `
+        <tr>
+          <td style="padding:8px 12px;font-size:13px;color:#334155;font-weight:600;border-bottom:1px solid #f1f5f9">${b.name}</td>
+          <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9">
+            <div style="display:flex;align-items:center;gap:8px">
+              <div style="flex:1;height:8px;background:#e2e8f0;border-radius:99px;overflow:hidden">
+                <div style="height:100%;width:${Math.round(b.value * 100)}%;background:${riskColorHex};border-radius:99px"></div>
+              </div>
+              <span style="font-size:12px;font-weight:700;color:${riskColorHex};min-width:36px;text-align:right">${(b.value * 100).toFixed(1)}%</span>
+            </div>
+          </td>
+        </tr>`
+      )
+      .join("");
+
+    const topRows = topBiomarkers
+      .map(
+        (item, i) => `
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:${i < 3 ? "#fffbeb" : "#f8fafc"};border-radius:12px;border:1px solid ${i < 3 ? "#fde68a" : "#e2e8f0"};margin-bottom:8px">
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:8px;background:${i < 3 ? "#f59e0b" : "#94a3b8"};color:#fff;font-size:11px;font-weight:800">${i + 1}</span>
+            <span style="font-size:13px;font-weight:700;color:#334155">${item.feature}</span>
+          </div>
+          <span style="font-size:13px;font-weight:800;color:#d97706">${(item.importance * 100).toFixed(1)}%</span>
+        </div>`
+      )
+      .join("");
+
+    const epiAgeSection =
+      typeof prediction.epigenetic_age === "number"
+        ? `<div class="card">
+            <h2 class="section-title">🔬 Cellular Age Comparison</h2>
+            <div style="display:flex;gap:24px;flex-wrap:wrap;margin-top:12px">
+              <div style="flex:1;min-width:120px;text-align:center;padding:20px;background:#eef2ff;border-radius:16px;border:1px solid #c7d2fe">
+                <div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:#818cf8;margin-bottom:8px">Chronological</div>
+                <div style="font-size:40px;font-weight:900;color:#312e81">${effectivePatient.age}</div>
+                <div style="font-size:12px;color:#818cf8;margin-top:4px">years</div>
+              </div>
+              <div style="flex:1;min-width:120px;text-align:center;padding:20px;background:#fff7ed;border-radius:16px;border:1px solid #fed7aa">
+                <div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:#f97316;margin-bottom:8px">Epigenetic</div>
+                <div style="font-size:40px;font-weight:900;color:#7c2d12">${Math.round(prediction.epigenetic_age)}</div>
+                <div style="font-size:12px;color:#f97316;margin-top:4px">years</div>
+              </div>
+              <div style="flex:2;min-width:200px;display:flex;flex-direction:column;justify-content:center;padding:20px;background:#f8fafc;border-radius:16px;border:1px solid #e2e8f0">
+                <div style="font-size:12px;font-weight:700;color:#64748b;margin-bottom:8px">Age Acceleration</div>
+                <div style="font-size:28px;font-weight:900;color:${Math.round(prediction.epigenetic_age) > effectivePatient.age ? "#ef4444" : "#10b981"}">
+                  ${Math.round(prediction.epigenetic_age) > effectivePatient.age ? "+" : ""}${Math.round(prediction.epigenetic_age) - effectivePatient.age} yrs
+                </div>
+                <div style="font-size:12px;color:#94a3b8;margin-top:4px">${Math.round(prediction.epigenetic_age) > effectivePatient.age ? "Epigenetic aging detected" : "No accelerated aging"}</div>
+              </div>
+            </div>
+          </div>`
+        : "";
+
+    const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>EpiChronos Risk Report – ${effectivePatient.name}</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f8fafc;color:#0f172a;line-height:1.5;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    .page{max-width:820px;margin:0 auto;padding:32px 40px}
+    .hero{background:linear-gradient(135deg,#0f172a 0%,#0c4a6e 50%,#042f2e 100%);border-radius:20px;padding:32px;margin-bottom:24px;color:#fff}
+    .hero-badge{display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:99px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.1);font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#bae6fd;margin-bottom:16px}
+    .hero-name{font-size:32px;font-weight:900;margin-bottom:8px}
+    .hero-sub{font-size:14px;color:rgba(255,255,255,.7);margin-bottom:20px}
+    .risk-pill{display:inline-flex;align-items:center;gap:8px;padding:8px 20px;border-radius:99px;font-size:15px;font-weight:800;border:2px solid;margin-bottom:8px}
+    .score-line{font-size:13px;color:rgba(255,255,255,.6)}
+    .info-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:24px}
+    .info-tile{background:#fff;border-radius:14px;padding:14px 16px;border:1px solid #e2e8f0;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+    .tile-label{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:#94a3b8;margin-bottom:4px}
+    .tile-value{font-size:15px;font-weight:700;color:#1e293b}
+    .card{background:#fff;border-radius:16px;padding:20px 24px;margin-bottom:20px;border:1px solid #e2e8f0;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+    .section-title{font-size:15px;font-weight:800;color:#0f172a;margin-bottom:14px;padding-bottom:10px;border-bottom:2px solid #f1f5f9}
+    table{width:100%;border-collapse:collapse}
+    .footer{text-align:center;margin-top:32px;padding-top:16px;border-top:1px solid #e2e8f0;font-size:11px;color:#94a3b8}
+    @page{margin:0.5in;size:A4 portrait}
+    @media print{body{background:#fff}.page{padding:0}}
+  </style>
+</head>
+<body>
+<div class="page">
+  <div class="hero">
+    <div class="hero-badge">⬡ EpiChronos AI Diagnostics</div>
+    <div class="hero-name">${effectivePatient.name !== "NaN" ? effectivePatient.name : "Unknown Profile"}</div>
+    <div class="hero-sub">Based on deep epigenetic analysis, this patient demonstrates the following risk profile.</div>
+    <div class="risk-pill" style="color:${riskColorHex};border-color:${riskColorHex};background:${riskColorHex}18">
+      ${effectiveRiskCategory} Risk
+    </div>
+    <div class="score-line">Risk Score: <strong style="color:#fff">${riskScorePercent} / 100</strong> &nbsp;·&nbsp; Analysis Date: <strong style="color:#fff">${effectivePatient.analysisDate}</strong></div>
+  </div>
+
+  <div class="info-grid">
+    <div class="info-tile"><div class="tile-label">Patient Name</div><div class="tile-value">${effectivePatient.name}</div></div>
+    <div class="info-tile"><div class="tile-label">Age</div><div class="tile-value">${effectivePatient.age !== "NaN" ? effectivePatient.age + " years" : "—"}</div></div>
+    <div class="info-tile"><div class="tile-label">Gender</div><div class="tile-value">${effectivePatient.gender !== "NaN" ? effectivePatient.gender : "—"}</div></div>
+    <div class="info-tile"><div class="tile-label">Smoking Status</div><div class="tile-value">${effectivePatient.smokingStatus !== "NaN" ? effectivePatient.smokingStatus : "—"}</div></div>
+    <div class="info-tile"><div class="tile-label">Risk Level</div><div class="tile-value" style="color:${riskColorHex};font-weight:800">${effectiveRiskCategory}</div></div>
+    <div class="info-tile"><div class="tile-label">Risk Score</div><div class="tile-value" style="color:${riskColorHex};font-weight:800">${riskScorePercent} / 100</div></div>
+  </div>
+
+  ${biomarkerData.length > 0 ? `
+  <div class="card">
+    <h2 class="section-title">📊 Biomarker Contribution</h2>
+    <table><tbody>${bioRows}</tbody></table>
+  </div>` : ""}
+
+  ${topBiomarkers.length > 0 ? `
+  <div class="card">
+    <h2 class="section-title">🔑 Top Drivers</h2>
+    ${topRows}
+  </div>` : ""}
+
+  ${epiAgeSection}
+
+  <div class="footer">
+    Generated by EpiChronos AI · ${new Date().toLocaleDateString("en-US", { year:"numeric", month:"long", day:"numeric" })} · For clinical reference only
+  </div>
+</div>
+<script>window.onload = () => { window.print(); window.onafterprint = () => window.close(); };<\/script>
+</body>
+</html>`;
+
+    const popup = window.open("", "_blank", "width=900,height=700,scrollbars=yes");
+    if (!popup) {
+      alert("Please allow popups for this site to download the report as PDF.");
+      return;
     }
-    style.textContent = `
-      @media print {
-        body > * { display: none !important; }
-        #epi-print-root { display: block !important; }
-        @page { margin: 0.6in; size: A4 portrait; }
-      }
-    `;
-
-    // Wrap the report in a print-visible root
-    const printRoot = document.createElement("div");
-    printRoot.id = "epi-print-root";
-    printRoot.style.display = "none";
-    const clone = reportRef.current.cloneNode(true);
-    printRoot.appendChild(clone);
-    document.body.appendChild(printRoot);
-
-    const cleanup = () => {
-      document.body.removeChild(printRoot);
-      style.textContent = "";
-    };
-
-    // afterprint fires when the print dialog closes (cancel or confirm)
-    window.addEventListener("afterprint", cleanup, { once: true });
-    window.print();
+    popup.document.write(html);
+    popup.document.close();
   };
 
   return (
