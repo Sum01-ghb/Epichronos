@@ -54,12 +54,15 @@ export default function App() {
             <ProtectedRoute>
               <MainLayout>
                 <Routes>
-                  <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                  <Route
+                    path="/"
+                    element={<Navigate to="/dashboard" replace />}
+                  />
                   <Route path="/dashboard" element={<Dashboard />} />
                   <Route path="/analyze" element={<Analyze />} />
                   <Route path="/reports" element={<Reports />} />
                   <Route path="/patients" element={<PatientHistory />} />
-                  <Route path="/settings" element={<Settings />} />
+                  {/* <Route path="/settings" element={<Settings />} /> */}
                 </Routes>
               </MainLayout>
             </ProtectedRoute>
@@ -69,4 +72,3 @@ export default function App() {
     </AuthProvider>
   );
 }
-
