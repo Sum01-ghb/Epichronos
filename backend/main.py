@@ -17,7 +17,7 @@ app = FastAPI(title="EpiChronos API", version="1.0.0")
 # CORS: allow React dev server to call the API
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=["http://localhost:5173", "https://epichronos.vercel.app"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
