@@ -50,6 +50,7 @@ class PredictionRequest(BaseModel):
     # Optional: used when saving report to history (must be sent by frontend when user is logged in)
     patient_name: Optional[str] = Field(None, description="Patient display name for report history")
     gender: Optional[str] = Field(None, description="Patient gender for report history")
+    smoking_status: Optional[str] = Field(None, description="Patient smoking status for report history")
 
 
 class TopBiomarker(BaseModel):

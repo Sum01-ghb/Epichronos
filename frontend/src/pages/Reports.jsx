@@ -130,6 +130,7 @@ export default function Reports() {
   const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
+    window.scrollTo(0, 0);
     setIsLoaded(true);
   }, []);
 

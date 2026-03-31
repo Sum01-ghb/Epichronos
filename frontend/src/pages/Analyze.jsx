@@ -176,6 +176,7 @@ export default function Analyze() {
         age: Number(formData.age || 0),
         patient_name: formData.patientName?.trim() || undefined,
         gender: formData.gender || undefined,
+        smoking_status: formData.smokingStatus || undefined,
       };
 
       const prediction = await predictPatient(payload);

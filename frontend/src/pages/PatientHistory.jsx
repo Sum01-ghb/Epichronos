@@ -95,10 +95,12 @@ export default function PatientHistory() {
     setError("");
     try {
       const report = await getPatientReport(reportId);
+      const inputs = report.report_data?.biomarker_inputs || {};
       const patientData = {
         patientName: report.patient_name,
         age: report.age,
         gender: report.gender || "",
+        smokingStatus: inputs.smoking_status || "",
       };
       const prediction = report.report_data || {};
       navigate("/reports", { state: { patientData, prediction } });
